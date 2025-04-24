@@ -3,6 +3,7 @@ implement wrappers for supportting different bot types
 """
 import json
 from abc import ABC, abstractmethod
+from typing import Optional, Union
 
 from common.log_helper import LOGGER
 from common.mj_helper import meta_to_options, MjaiType
@@ -59,10 +60,10 @@ class Bot(ABC):
         """ Initialize the bot before the game starts."""
 
     @abstractmethod
-    def react(self, input_msg:dict) -> dict | None:
+    def react(self, input_msg:dict) -> Optional[dict]:
         """ input mjai msg and get bot output if any, or None if not"""
 
-    def react_batch(self, input_list:list[dict]) -> dict | None:
+    def react_batch(self, input_list:list[dict]) -> Optional[dict]:
         """ input list of mjai msg and get the last output, if any"""
         
         # default implementation is to iterate and feed to bot

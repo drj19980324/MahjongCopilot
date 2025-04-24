@@ -3,6 +3,7 @@ This module processes Majsoul game state and take liqi messages as inputs,
 and interfaces with AI bot to generate reactions.
 """
 import time
+from typing import Optional, Union
 
 from liqi import MsgType
 from liqi import LiqiProto, LiqiMethod, LiqiAction
@@ -118,13 +119,12 @@ class GameState:
         else:
             return None    
         
-    def input(self, liqi_msg: dict) -> dict | None:
-        """ Input Majsoul liqi msg for processing and return result MJAI msg if any. 
-        
-        params:
-            liqi_msg(dict): parsed Majsoul message in liqi dict format
-        returns:
-            dict: Mjai message in dict format (i.e. AI's reaction) if any. May be None.
+    def input(self, liqi_msg: dict) -> Optional[dict]:
+        """ Input liqi message and get reaction
+        Params:
+            liqi_msg (dict): liqi message
+        Returns:
+            dict: reaction message, or None if no reaction
         """
         self.is_bot_calculating = True
         start_time = time.time()
@@ -138,7 +138,7 @@ class GameState:
         self.is_bot_calculating = False
         return reaction
     
-    def _input_inner(self, liqi_msg: dict) -> dict | None:        
+    def _input_inner(self, liqi_msg: dict) -> Optional[dict]:        
         liqi_type = liqi_msg['type']
         liqi_method = liqi_msg['method']
         liqi_data = liqi_msg['data']
@@ -435,88 +435,86 @@ class GameState:
             assert target != actor
             assert len(consumed_mjai) != 0
             assert tile_mjai != ''
-            match liqi_data_data['type']:
-                case ChiPengGang.Chi:
-                    assert len(consumed_mjai) == 2
-                    self.mjai_pending_input_msgs.append(
-                        {
-                            'type': MjaiType.CHI,
-                            'actor': actor,
-                            'target': target,
-                            'pai': tile_mjai,
-                            'consumed': consumed_mjai
-                        }
-                    )
-                case ChiPengGang.Peng:
-                    assert len(consumed_mjai) == 2
-                    self.mjai_pending_input_msgs.append(
-                        {
-                            'type': MjaiType.PON,
-                            'actor': actor,
-                            'target': target,
-                            'pai': tile_mjai,
-                            'consumed': consumed_mjai
-                        }
-                    )
-                case ChiPengGang.Gang:
-                    assert len(consumed_mjai) == 3
-                    self.mjai_pending_input_msgs.append(
-                        {
-                            'type': MjaiType.DAIMINKAN,
-                            'actor': actor,
-                            'target': target,
-                            'pai': tile_mjai,
-                            'consumed': consumed_mjai
-                        }
-                    )
-                case _:
-                    raise ValueError(f"Unknown ChiPengGang type {liqi_data_data['type']}")
+            if liqi_data_data['type'] == ChiPengGang.Chi:
+                assert len(consumed_mjai) == 2
+                self.mjai_pending_input_msgs.append(
+                    {
+                        'type': MjaiType.CHI,
+                        'actor': actor,
+                        'target': target,
+                        'pai': tile_mjai,
+                        'consumed': consumed_mjai
+                    }
+                )
+            elif liqi_data_data['type'] == ChiPengGang.Peng:
+                assert len(consumed_mjai) == 2
+                self.mjai_pending_input_msgs.append(
+                    {
+                        'type': MjaiType.PON,
+                        'actor': actor,
+                        'target': target,
+                        'pai': tile_mjai,
+                        'consumed': consumed_mjai
+                    }
+                )
+            elif liqi_data_data['type'] == ChiPengGang.Gang:
+                assert len(consumed_mjai) == 3
+                self.mjai_pending_input_msgs.append(
+                    {
+                        'type': MjaiType.DAIMINKAN,
+                        'actor': actor,
+                        'target': target,
+                        'pai': tile_mjai,
+                        'consumed': consumed_mjai
+                    }
+                )
+            else:
+                raise ValueError(f"Unknown ChiPengGang type {liqi_data_data['type']}")
             return self._react_all(liqi_data_data)
                     
         # LiqiAction.AnGangAddGang -> MJAI ANKAN / KAKAN
         elif liqi_data_name == LiqiAction.AnGangAddGang:
             actor = liqi_data_data['seat']
-            match liqi_data_data['type']:
-                case MSGangType.AnGang:
-                    tile_mjai = mj_helper.cvt_ms2mjai(liqi_data_data['tiles'])
-                    consumed_mjai = [tile_mjai.replace("r", "")]*4
-                    if tile_mjai[0] == '5' and tile_mjai[1] != 'z':
-                        consumed_mjai[0] += 'r'
-                    
-                    if actor == self.seat:      # update hand info. ankan is after tsumo, so there is tsumohai
-                        self.kyoku_state.my_tehai.append(self.kyoku_state.my_tsumohai)
-                        self.kyoku_state.my_tsumohai = None
-                        for c in consumed_mjai:
-                            self.kyoku_state.my_tehai.remove(c)
-                        self.kyoku_state.my_tehai = mj_helper.sort_mjai_tiles(self.kyoku_state.my_tehai)                        
+            if liqi_data_data['type'] == MSGangType.AnGang:
+                tile_mjai = mj_helper.cvt_ms2mjai(liqi_data_data['tiles'])
+                consumed_mjai = [tile_mjai.replace("r", "")]*4
+                if tile_mjai[0] == '5' and tile_mjai[1] != 'z':
+                    consumed_mjai[0] += 'r'
+                
+                if actor == self.seat:      # update hand info. ankan is after tsumo, so there is tsumohai
+                    self.kyoku_state.my_tehai.append(self.kyoku_state.my_tsumohai)
+                    self.kyoku_state.my_tsumohai = None
+                    for c in consumed_mjai:
+                        self.kyoku_state.my_tehai.remove(c)
+                    self.kyoku_state.my_tehai = mj_helper.sort_mjai_tiles(self.kyoku_state.my_tehai)                        
 
-                    self.mjai_pending_input_msgs.append(
-                        {
-                            'type': MjaiType.ANKAN,
-                            'actor': actor,
-                            'consumed': consumed_mjai
-                        }
-                    )
-                case MSGangType.AddGang:
-                    tile_mjai = mj_helper.cvt_ms2mjai(liqi_data_data['tiles'])
-                    consumed_mjai = [tile_mjai.replace("r", "")] * 3
-                    if tile_mjai[0] == "5" and not tile_mjai.endswith("r"):
-                        consumed_mjai[0] = consumed_mjai[0] + "r"
+                self.mjai_pending_input_msgs.append(
+                    {
+                        'type': MjaiType.ANKAN,
+                        'actor': actor,
+                        'consumed': consumed_mjai
+                    }
+                )
+            elif liqi_data_data['type'] == MSGangType.AddGang:
+                tile_mjai = mj_helper.cvt_ms2mjai(liqi_data_data['tiles'])
+                consumed_mjai = [tile_mjai.replace("r", "")] * 3
+                if tile_mjai[0] == "5" and not tile_mjai.endswith("r"):
+                    consumed_mjai[0] = consumed_mjai[0] + "r"
+                
+                if actor == self.seat:      # update hand info. kakan is after tsumo, so there is tsumohai
+                    self.kyoku_state.my_tehai.append(self.kyoku_state.my_tsumohai)
+                    self.kyoku_state.my_tsumohai = None
+                    self.kyoku_state.my_tehai.remove(tile_mjai)
+                    self.kyoku_state.my_tehai = mj_helper.sort_mjai_tiles(self.kyoku_state.my_tehai)
                     
-                    if actor == self.seat:      # update hand info. kakan is after tsumo, so there is tsumohai
-                        self.kyoku_state.my_tehai.append(self.kyoku_state.my_tsumohai)
-                        self.kyoku_state.my_tsumohai = None
-                        self.kyoku_state.my_tehai.remove(tile_mjai)
-                        self.kyoku_state.my_tehai = mj_helper.sort_mjai_tiles(self.kyoku_state.my_tehai)
-                        
-                    self.mjai_pending_input_msgs.append(
-                        {
-                            'type': MjaiType.KAKAN,
-                            'actor': actor,
-                            'pai': tile_mjai,
-                            'consumed': consumed_mjai
-                        }
-                    )
+                self.mjai_pending_input_msgs.append(
+                    {
+                        'type': MjaiType.KAKAN,
+                        'actor': actor,
+                        'pai': tile_mjai,
+                        'consumed': consumed_mjai
+                    }
+                )
             return self._react_all(liqi_data_data)
         
         # (3p Mahjong only) LiqiAction.BaBei -> MJAI NUKIDORA
@@ -558,7 +556,7 @@ class GameState:
             LOGGER.warning('Unknown liqi_data name %s', liqi_data_name)
             return None
         
-    def ms_end_kyoku(self) -> dict | None:
+    def ms_end_kyoku(self) -> Optional[dict]:
         """ End kyoku and get None as reaction"""
         self.mjai_pending_input_msgs = []
         # self.mjai_pending_input_msgs.append(
@@ -588,7 +586,7 @@ class GameState:
     def ms_template(self, liqi_data:dict) -> dict:
         """ template"""
             
-    def _react_all(self, data=None) -> dict | None:
+    def _react_all(self, data=None) -> Optional[dict]:
         """ Feed all pending messages to AI bot and get bot reaction
         ref: https://mjai.app/docs/mjai-protocol
         Params:

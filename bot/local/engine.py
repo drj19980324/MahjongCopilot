@@ -55,17 +55,18 @@ class MortalEngine:
             invisible_obs = torch.as_tensor(np.stack(invisible_obs, axis=0), device=self.device)
         batch_size = obs.shape[0]
 
-        match self.version:
-            case 1:
-                mu, logsig = self.brain(obs, invisible_obs)
-                if self.stochastic_latent:
-                    latent = Normal(mu, logsig.exp() + 1e-6).sample()
-                else:
-                    latent = mu
-                q_out = self.dqn(latent, masks)
-            case 2 | 3 | 4:
-                phi = self.brain(obs)
-                q_out = self.dqn(phi, masks)
+        if self.version == 1:
+            mu, logsig = self.brain(obs, invisible_obs)
+            if self.stochastic_latent:
+                latent = Normal(mu, logsig.exp() + 1e-6).sample()
+            else:
+                latent = mu
+            q_out = self.dqn(latent, masks)
+        elif self.version in [2, 3, 4]:
+            phi = self.brain(obs)
+            q_out = self.dqn(phi, masks)
+        else:
+            raise ValueError(f"Unknown version: {self.version}")
 
         if self.boltzmann_epsilon > 0:
             is_greedy = torch.full((batch_size,), 1-self.boltzmann_epsilon, device=self.device).bernoulli().to(torch.bool)

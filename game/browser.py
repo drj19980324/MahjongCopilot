@@ -4,6 +4,7 @@ import time
 import threading
 import queue
 import os
+from typing import Optional, Union
 
 from io import BytesIO
 from playwright._impl._errors import TargetClosedError
@@ -296,7 +297,7 @@ class GameBrowser:
         self._action_queue.put(lambda: self._action_overlay_update_botleft(text))
 
 
-    def screen_shot(self) -> bytes | None:
+    def screen_shot(self) -> Optional[bytes]:
         """ Take broswer page screenshot and return buff if success, or None if not"""
         if not self.is_page_normal():
             return None
